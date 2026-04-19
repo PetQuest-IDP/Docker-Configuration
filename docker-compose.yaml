@@ -46,7 +46,7 @@ services:
       - auth-network
     environment:
       DB_SERVICE_BASE_URL: http://db-service:8082
-      JWT_SECRET: 256-bit-secret-for-petquest-idp
+      JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
       JWT_ACCESS_TOKEN_EXPIRY: 900000
       JWT_REFRESH_TOKEN_EXPIRY: 2592000000
     ports:
