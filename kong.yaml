@@ -1,0 +1,32 @@
+_format_version: "3.0"
+_transform: true
+
+consumers:
+  - username: auth-service
+    jwt_secrets:
+      - key: auth-service
+        secret: 256-bit-super-secret-key-for-jwt-petquest-idp
+        algorithm: HS256
+
+services:
+
+  - name: auth-service
+    url: http://auth-service:8081
+    routes:
+      - name: auth-public
+        paths:
+          - /auth/register
+          - /auth/login
+          - /auth/refresh
+        methods:
+          - POST
+        strip_path: false
+
+      - name: auth-protected
+        paths:
+          - /auth/logout
+        methods:
+          - POST
+        strip_path: false
+        plugins:
+          - name: jwt

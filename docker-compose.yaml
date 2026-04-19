@@ -3,6 +3,8 @@ networks:
     driver: bridge
   db-network:
     driver: bridge
+  kong-network:
+    driver: bridge
 
 services:
 
@@ -44,15 +46,37 @@ services:
     container_name: auth-service
     networks:
       - auth-network
+      - kong-network
     environment:
       DB_SERVICE_BASE_URL: http://db-service:8082
       JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
       JWT_ACCESS_TOKEN_EXPIRY: 900000
       JWT_REFRESH_TOKEN_EXPIRY: 2592000000
-    ports:
-      - "8081:8081"
     depends_on:
       - db-service
+
+  kong:
+    image: kong:3.6
+    container_name: kong
+    networks:
+      - kong-network
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong.yaml
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+    volumes:
+      - ./kong.yaml:/kong.yaml
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    depends_on:
+      - auth-service
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres-data:
