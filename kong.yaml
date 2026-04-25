@@ -30,3 +30,16 @@ services:
         strip_path: false
         plugins:
           - name: jwt
+
+  - name: task-service
+    url: http://task-service:8083
+    routes:
+      - name: quests-route
+        paths:
+          - /quests
+        strip_path: false
+
+      - name: tasks-route
+        paths:
+          - /tasks
+        strip_path: false
