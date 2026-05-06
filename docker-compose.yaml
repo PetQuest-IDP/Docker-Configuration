@@ -121,6 +121,8 @@ services:
       - "3000:3000"
     networks:
       - monitoring-network
+    volumes:
+      - grafana-data:/var/lib/grafana
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:v0.49.1
@@ -138,3 +140,4 @@ volumes:
   postgres-data:
   pgadmin-data:
   portainer-data:
+  grafana-data:
