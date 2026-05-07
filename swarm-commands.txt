@@ -1,0 +1,74 @@
+# Build and push new images to Docker Hub
+# Instead of alexandradi2003 use your Docker Hub username
+# Instead of auth-service use any service
+docker build -t alexandradi2003/auth-service:latest ./Authentication-Service
+docker push alexandradi2003/auth-service:latest
+
+# Start cluster
+docker compose -f dind-cluster.yaml up -d
+
+# Get manager IP
+docker inspect swarm-manager --format '{{json .NetworkSettings.Networks}}'
+
+# Init manager (replace with actual IP)
+docker exec swarm-manager docker swarm init --advertise-addr 172.19.0.4
+
+# Join workers (use the token printed by init)
+docker exec swarm-worker1 docker swarm join --token SWMTKN-1-abc123... 172.19.0.4:2377
+docker exec swarm-worker2 docker swarm join --token SWMTKN-1-abc123... 172.19.0.4:2377
+
+# Deploy the stack
+docker exec swarm-manager docker stack deploy -c /petquest/Docker-Configuration/stack.yaml petquest
+
+# See all services
+docker exec swarm-manager docker stack services petquest
+
+# Local testing flow
+=====================================================================
+
+# Stop the stack (services stop, cluster stays)
+docker exec swarm-manager docker stack rm petquest
+
+# Stop the DIND containers (cluster pauses but swarm config is saved in volumes)
+docker compose -f dind-cluster.yaml stop
+
+# Start compose for local testing
+docker compose up -d
+# ... test ...
+docker compose down
+
+# Resume DIND cluster (swarm config is still there from volumes)
+docker compose -f dind-cluster.yaml start
+
+# Redeploy stack, no need to reinit swarm
+docker exec swarm-manager docker stack deploy -c /petquest/Docker-Configuration/stack.yaml petquest
+
+=====================================================================
+
+# Microservice redeployment flow
+=====================================================================
+
+# 1. Build the new image
+docker build -t alexandradi2003/auth-service:latest ./Authentication-Service
+
+# 2. Push to Docker Hub
+docker push alexandradi2003/auth-service:latest
+
+# 3. Update the service in the swarm
+docker exec swarm-manager docker service update --image alexandradi2003/auth-service:latest petquest_auth-service
+
+=====================================================================
+
+# Existent service redeployment flow
+=====================================================================
+
+# Remove the specific service:
+docker exec swarm-manager docker service rm petquest_cadvisor
+
+# Redeploy the stack:
+docker exec swarm-manager docker stack deploy -c /petquest/Docker-Configuration/stack.yaml petquest
+
+=====================================================================
+
+# Stack redeployment (works exactly like deployment)
+docker exec swarm-manager docker stack deploy -c /petquest/Docker-Configuration/stack.yaml petquest

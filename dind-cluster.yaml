@@ -1,0 +1,52 @@
+services:
+
+  swarm-manager:
+    image: docker:27.0-dind
+    container_name: swarm-manager
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    ports:
+      - "8000:8000"     # kong proxy
+      - "8001:8001"     # kong admin
+      - "9443:9443"     # portainer
+      - "5050:5050"     # pgadmin
+      - "3000:3000"     # grafana
+      - "9090:9090"     # prometheus
+      - "5432:5432"     # postgres
+    volumes:
+      - manager-data:/var/lib/docker
+      - ../:/petquest   # mounts the entire project into the container
+    networks:
+      - dind-network
+
+  swarm-worker1:
+    image: docker:27.0-dind
+    container_name: swarm-worker1
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - worker1-data:/var/lib/docker
+    networks:
+      - dind-network
+
+  swarm-worker2:
+    image: docker:27.0-dind
+    container_name: swarm-worker2
+    privileged: true
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    volumes:
+      - worker2-data:/var/lib/docker
+    networks:
+      - dind-network
+
+networks:
+  dind-network:
+    driver: bridge
+
+volumes:
+  manager-data:
+  worker1-data:
+  worker2-data:

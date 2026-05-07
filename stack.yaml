@@ -1,0 +1,201 @@
+networks:
+  auth-network:
+    driver: overlay
+    attachable: true
+  db-network:
+    driver: overlay
+    attachable: true
+  kong-network:
+    driver: overlay
+    attachable: true
+  monitoring-network:
+    driver: overlay
+    attachable: true
+
+volumes:
+  postgres-data:
+    driver: local
+  pgadmin-data:
+    driver: local
+  portainer-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+services:
+
+  portainer:
+    image: portainer/portainer-ce:2.21.5
+    ports:
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+
+  postgres:
+    image: postgres:16
+    networks:
+      - db-network
+    environment:
+      POSTGRES_DB: petquest-db
+      POSTGRES_USER: petquest-db
+      POSTGRES_PASSWORD: idpacs1234
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U petquest-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  pgadmin:
+    image: dpage/pgadmin4
+    networks:
+      - db-network
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@petquest.com
+      PGADMIN_DEFAULT_PASSWORD: idpacs1234
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  db-service:
+    image: alexandradi2003/db-service:latest
+    networks:
+      - auth-network
+      - db-network
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/petquest-db
+      SPRING_DATASOURCE_USERNAME: petquest-db
+      SPRING_DATASOURCE_PASSWORD: idpacs1234
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+
+  auth-service:
+    image: alexandradi2003/auth-service:latest
+    networks:
+      - auth-network
+      - kong-network
+    environment:
+      DB_SERVICE_BASE_URL: http://db-service:8082
+      JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
+      JWT_ACCESS_TOKEN_EXPIRY: 900000
+      JWT_REFRESH_TOKEN_EXPIRY: 2592000000
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+
+  kong:
+    image: kong:3.6
+    networks:
+      - kong-network
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong.yaml
+      KONG_PROXY_LISTEN: "0.0.0.0:8000"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+    configs:
+      - source: kong-config
+        target: /kong.yaml
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    deploy:
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+      restart_policy:
+        condition: on-failure
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    networks:
+      - monitoring-network
+    configs:
+      - source: prometheus-config
+        target: /etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    networks:
+      - monitoring-network
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    networks:
+      - monitoring-network
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    deploy:
+      restart_policy:
+        condition: on-failure
+      mode: global
+
+configs:
+  kong-config:
+    file: ./kong.yaml
+  prometheus-config:
+    file: ./prometheus.yaml
