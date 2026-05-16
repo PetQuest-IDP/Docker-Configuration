@@ -5,6 +5,8 @@ networks:
     driver: bridge
   kong-network:
     driver: bridge
+  messaging-network:
+    driver: bridge
   monitoring-network:
     driver: bridge
 
@@ -53,6 +55,23 @@ services:
     volumes:
       - pgadmin-data:/var/lib/pgadmin
 
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq
+    networks:
+      - messaging-network
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   db-service:
     build: ../Database-Service
     container_name: db-service
@@ -81,6 +100,42 @@ services:
     depends_on:
       - db-service
 
+  task-service:
+    build: ../Task-Service
+    container_name: task-service
+    networks:
+      - db-network
+      - kong-network
+      - messaging-network
+    environment:
+      DB_SERVICE_BASE_URL: http://db-service:8082
+      JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      db-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+  notification-service:
+    build: ../Notification-Service
+    container_name: notification-service
+    networks:
+      - kong-network
+      - messaging-network
+    environment:
+      JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   kong:
     image: kong:3.6
     container_name: kong
@@ -98,6 +153,7 @@ services:
       - "8001:8001"
     depends_on:
       - auth-service
+      - task-service
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
