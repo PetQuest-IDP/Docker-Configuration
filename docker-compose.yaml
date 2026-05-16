@@ -94,6 +94,22 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  notification-service:
+    build: ../Notification-Service
+    container_name: notification-service
+    networks:
+      - kong-network
+      - messaging-network
+    environment:
+      JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
   kong:
     image: kong:3.6
     container_name: kong
