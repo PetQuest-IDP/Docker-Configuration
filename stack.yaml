@@ -11,6 +11,9 @@ networks:
   monitoring-network:
     driver: overlay
     attachable: true
+  messaging-network:
+    driver: overlay
+    attachable: true
 
 volumes:
   postgres-data:
@@ -83,6 +86,29 @@ services:
         constraints:
           - node.role == manager
 
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    networks:
+      - messaging-network
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
   db-service:
     image: alexandradi2003/db-service:latest
     networks:
@@ -114,6 +140,54 @@ services:
       JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
       JWT_ACCESS_TOKEN_EXPIRY: 900000
       JWT_REFRESH_TOKEN_EXPIRY: 2592000000
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+
+  task-service:
+    image: raresbalan19/task-service:latest
+    networks:
+      - db-network
+      - kong-network
+      - messaging-network
+    environment:
+      DB_SERVICE_BASE_URL: http://db-service:8082
+      JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+      placement:
+        constraints:
+          - node.role == worker
+
+  notification-service:
+    image: raresbalan19/notification-service:latest
+    networks:
+      - kong-network
+      - messaging-network
+    environment:
+      JWT_SECRET: 256-bit-super-secret-key-for-jwt-petquest-idp
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
     deploy:
       replicas: 2
       restart_policy:
