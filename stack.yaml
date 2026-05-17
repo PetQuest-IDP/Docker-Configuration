@@ -110,7 +110,7 @@ services:
           - node.role == manager
 
   db-service:
-    image: alexandradi2003/db-service:latest
+    image: raresbalan19/db-service:latest
     networks:
       - auth-network
       - db-network
