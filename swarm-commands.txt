@@ -72,3 +72,16 @@ docker exec swarm-manager docker stack deploy -c /petquest/Docker-Configuration/
 
 # Stack redeployment (works exactly like deployment)
 docker exec swarm-manager docker stack deploy -c /petquest/Docker-Configuration/stack.yaml petquest
+
+=====================================================================
+
+# Stop and restart
+
+# Stop
+docker exec swarm-manager docker stack rm petquest
+docker compose -f dind-cluster.yaml stop
+
+# Restart
+docker compose -f dind-cluster.yaml start
+docker exec swarm-manager docker node ls
+docker exec swarm-manager docker stack deploy -c /petquest/Docker-Configuration/stack.yaml petquest
